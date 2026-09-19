@@ -1,15 +1,19 @@
 // Camada de dados do Foco — tudo salvo no aparelho (localStorage).
 import { useState, useEffect } from 'react'
 
-const KEY = 'foco.dados.v1'
+const KEY = 'foco.dados.v2' // v2: novo formato (rotina + contas separadas)
 
 const SEED = {
   perfil: { nome: 'Marlon' },
-  itens: [
-    { id: 1, titulo: 'Academia',  hora: '10:00', duracaoMin: 80,  custo: 0,   icone: 'dumbbell', feito: false },
-    { id: 2, titulo: 'Farmácia',  hora: '11:45', duracaoMin: 20,  custo: 45,  icone: 'pill',     feito: false },
-    { id: 3, titulo: 'Turno WEG', hora: '14:00', duracaoMin: 600, custo: 0,   icone: 'wrench',   feito: false },
-    { id: 4, titulo: 'Energia',   hora: '23:00', duracaoMin: 0,   custo: 210, icone: 'bolt',     feito: false, conta: true },
+  rotina: [
+    { id: 1, titulo: 'Academia',  hora: '10:00', duracaoMin: 80,  icone: 'dumbbell', feito: false },
+    { id: 2, titulo: 'Farmácia',  hora: '11:45', duracaoMin: 20,  icone: 'pill',     feito: false },
+    { id: 3, titulo: 'Turno WEG', hora: '14:00', duracaoMin: 600, icone: 'wrench',   feito: false },
+  ],
+  contas: [
+    { id: 1, nome: 'Energia',  valor: 210, dia: 10, pago: false, recorrente: true, icone: 'bolt' },
+    { id: 2, nome: 'Internet', valor: 120, dia: 15, pago: false, recorrente: true, icone: 'wifi' },
+    { id: 3, nome: 'Cartão',   valor: 640, dia: 20, pago: false, recorrente: true, icone: 'card' },
   ],
 }
 
@@ -32,9 +36,10 @@ export function useDados(){
   return [dados, setDados]
 }
 
-// ---- helpers de tempo/dinheiro ----
+// ---- helpers ----
 export const horaMin = (h) => { const [a,b] = h.split(':').map(Number); return a*60 + (b||0) }
 export const agoraMin = () => { const d = new Date(); return d.getHours()*60 + d.getMinutes() }
+export const diaHoje = () => new Date().getDate()
 
 export function fmtDur(min){
   if (!min) return '—'
@@ -44,13 +49,33 @@ export function fmtDur(min){
   return `${m} min`
 }
 export function fmtR(v){
-  if (v == null || v === '' || Number(v) === 0) return '—'
+  if (v == null || v === '') return 'R$ 0'
   return 'R$ ' + Number(v).toLocaleString('pt-BR')
 }
 
-// próximo movimento: item aberto (não feito, não conta), o mais próximo do horário atual
-export function proximo(itens){
-  const abertos = itens.filter(i => !i.feito && !i.conta).sort((a,b)=>horaMin(a.hora)-horaMin(b.hora))
+// próximo compromisso da rotina (não feito, mais perto do horário)
+export function proximo(rotina){
+  const abertos = rotina.filter(i => !i.feito).sort((a,b)=>horaMin(a.hora)-horaMin(b.hora))
   const ag = agoraMin()
   return abertos.find(i => horaMin(i.hora) >= ag) || abertos[0] || null
+}
+
+// status de uma conta: 'paga' | 'vencida' | 'hoje' | 'pendente'
+export function statusConta(c){
+  if (c.pago) return 'paga'
+  const h = diaHoje()
+  if (c.dia < h) return 'vencida'
+  if (c.dia === h) return 'hoje'
+  return 'pendente'
+}
+
+// resumo financeiro do mês
+export function resumoContas(contas){
+  const total = contas.reduce((s,c)=>s+(Number(c.valor)||0), 0)
+  const pago  = contas.filter(c=>c.pago).reduce((s,c)=>s+(Number(c.valor)||0), 0)
+  const falta = total - pago
+  const h = diaHoje()
+  const pendentes = contas.filter(c=>!c.pago).sort((a,b)=>a.dia-b.dia)
+  const proxima = pendentes.find(c=>c.dia>=h) || pendentes[0] || null
+  return { total, pago, falta, proxima }
 }
