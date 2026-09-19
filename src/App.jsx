@@ -1,123 +1,295 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from 'react'
+import { HashRouter, Routes, Route, NavLink, useNavigate } from 'react-router-dom'
+import { useDados, resetar, fmtDur, fmtR, proximo, horaMin, agoraMin } from './data.js'
 
-/**
- * FOCO — Conceito B "Próximo Movimento"
- * Anti-painel: uma coisa por vez, na hora certa. Calma radical.
- * Esta é a tela inicial. Ainda usa dados fixos (mock) — a lógica vem depois.
- */
-
-const RED = "#E24034";
-
-// ícone simples (SVG). Depois isso vira um arquivo próprio.
-function Icon({ n, s = 18 }) {
-  const p = { width: s, height: s, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" };
+/* ---------------- Ícones ---------------- */
+function Icon({ n, s = 18 }){
+  const p = { width:s, height:s, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor',
+    strokeWidth:1.6, strokeLinecap:'round', strokeLinejoin:'round' }
   const d = {
-    play: <path d="M8 5v14l11-7z" />,
-    dumbbell: <path d="M6.5 6.5v11M17.5 6.5v11M4 9.5v5M20 9.5v5M6.5 12h11" />,
-    chevron: <path d="M6 9l6 6 6-6" />,
-  };
-  return <svg {...p}>{d[n]}</svg>;
+    dumbbell:<path d="M6.5 6.5v11M17.5 6.5v11M4 9.5v5M20 9.5v5M6.5 12h11"/>,
+    pill:<><rect x="3" y="8" width="18" height="8" rx="4"/><path d="M12 8v8"/></>,
+    wrench:<path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.3L4 15.7 6.3 18l5.9-5.9a3.5 3.5 0 0 0 4.3-4.6l-2.1 2.1-1.9-.5-.5-1.9z"/>,
+    bolt:<path d="M13 3 5 13h6l-1 8 8-10h-6z"/>,
+    clock:<><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></>,
+    play:<path d="M8 5v14l11-7z"/>,
+    plus:<path d="M12 5v14M5 12h14"/>,
+    trash:<><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></>,
+    chevron:<path d="M6 9l6 6 6-6"/>,
+    home:<><path d="M4 11.5 12 5l8 6.5"/><path d="M6 10v9h12v-9"/></>,
+    list:<><path d="M4 6h16M4 12h16M4 18h10"/><circle cx="17" cy="18" r="2.4"/></>,
+    coin:<><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M9.5 10h3.2a1.6 1.6 0 0 1 0 3.2H10"/></>,
+    spark:<path d="M12 4v16M4 12h16M7 7l10 10M17 7 7 17"/>,
+    user:<><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.4-3.5 4.6-4.5 7-4.5s5.6 1 7 4.5"/></>,
+  }
+  return <svg {...p}>{d[n] || null}</svg>
 }
 
-export default function App() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    const id = setTimeout(() => setMounted(true), 120);
-    return () => clearTimeout(id);
-  }, []);
+/* ---------------- HOJE (Conceito B) ---------------- */
+function Hoje({ dados, setDados }){
+  const nav = useNavigate()
+  const prox = proximo(dados.itens)
+  const abertos = dados.itens.filter(i => !i.feito && !i.conta && i.id !== (prox && prox.id))
+    .sort((a,b)=>horaMin(a.hora)-horaMin(b.hora))
 
-  // dado fixo por enquanto — o "próximo movimento" virá do motor de dados depois.
-  const agora = {
-    titulo: "Academia",
-    horario: "10:00",
-    faltam: "20 min",
-    contexto: "1h20 no alvo.",
-    icon: "dumbbell",
-  };
+  const iniciar = () => { if (!prox) return
+    setDados(d => ({ ...d, itens: d.itens.map(i => i.id === prox.id ? { ...i, feito:true } : i) })) }
+  const adiar = () => { if (!prox) return
+    setDados(d => ({ ...d, itens: d.itens.map(i => {
+      if (i.id !== prox.id) return i
+      const m = Math.min(horaMin(i.hora) + 30, 23*60+59)
+      return { ...i, hora: `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}` }
+    }) }))
+  }
+
+  const diff = prox ? horaMin(prox.hora) - agoraMin() : 0
+  const quando = prox ? (diff > 0 ? `começa em ${fmtDur(diff)}` : 'começa agora') : ''
 
   return (
-    <div className="app">
-      <style>{`
-        .app{--red:${RED};--bone:#ECE6D9;--dim:#8C877B;--dim2:#5E5A52;
-          min-height:100%;display:flex;justify-content:center;
-          font-family:'Archivo',system-ui,sans-serif;color:var(--bone)}
-        .app .mono{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+    <div style={{ minHeight:'70vh', display:'flex', flexDirection:'column' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <span className="mono" style={{ fontSize:12, color:'var(--dim)', letterSpacing:1 }}>
+          {new Date().toLocaleDateString('pt-BR',{weekday:'short', day:'2-digit', month:'short'})}
+        </span>
+        <span style={{ fontSize:10, letterSpacing:1, color:'var(--dim2)' }}>
+          {abertos.length + (prox?1:0)} guardados
+        </span>
+      </div>
 
-        .frame{width:100%;max-width:440px;min-height:100%;position:relative;display:flex;flex-direction:column;
-          padding:calc(env(safe-area-inset-top) + 24px) 24px calc(env(safe-area-inset-bottom) + 22px)}
-        .grain{position:absolute;inset:0;pointer-events:none;opacity:.045;mix-blend-mode:soft-light;
-          background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
-
-        @media (prefers-reduced-motion:no-preference){
-          .fade{opacity:0;animation:fade 1s ease forwards}
-          .f1{animation-delay:.1s}.f2{animation-delay:.35s}.f3{animation-delay:1.1s}.f4{animation-delay:1.4s}
-          .rise{opacity:0;transform:translateY(18px);animation:rise 1.1s cubic-bezier(.2,.7,.2,1) .35s forwards}
-        }
-        @keyframes fade{to{opacity:1}}
-        @keyframes rise{to{opacity:1;transform:none}}
-
-        .top{display:flex;justify-content:space-between;align-items:center;position:relative;z-index:1}
-        .clock{font-size:12px;color:var(--dim);letter-spacing:1px}
-        .queue{display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:1px;color:var(--dim2)}
-        .qdot{width:5px;height:5px;border-radius:50%;background:var(--dim2)}
-
-        .stage{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;
-          padding:0 6px;position:relative;z-index:1}
-        .kicker{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:2.4px;color:var(--dim);margin-bottom:28px}
-        .live{width:6px;height:6px;border-radius:50%;background:var(--red);animation:blink 2.6s infinite}
-        @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
-
-        .glyph{width:60px;height:60px;border:1px solid rgba(236,230,217,0.16);border-radius:16px;
-          display:flex;align-items:center;justify-content:center;color:var(--bone);margin-bottom:26px}
-        .title{font-size:40px;font-weight:600;letter-spacing:-1.2px;line-height:1}
-        .when{font-size:14px;color:var(--dim);margin-top:16px;letter-spacing:.3px}
-        .when b{color:var(--red);font-weight:600}
-        .ctx{font-size:14px;color:var(--dim);margin-top:22px;line-height:1.6;max-width:250px}
-        .ctx b{color:var(--bone);font-weight:500}
-
-        .cta{margin-top:38px;width:100%;max-width:290px;height:56px;border-radius:12px;
-          background:var(--bone);color:#151310;border:none;font-family:'Archivo';font-size:16px;font-weight:600;
-          letter-spacing:-.2px;display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer}
-        .cta svg{stroke:#151310;fill:#151310}
-        .defer{margin-top:16px;font-size:13px;color:var(--dim2);letter-spacing:.3px;cursor:pointer;
-          background:none;border:none;font-family:'Archivo'}
-
-        .ghost{padding-top:20px;border-top:1px solid rgba(236,230,217,0.06);position:relative;z-index:1}
-        .glbl{font-size:9px;letter-spacing:2px;color:var(--dim2);margin-bottom:12px;text-align:center}
-        .grow{display:flex;justify-content:center;gap:8px;font-size:12px;color:var(--dim2);letter-spacing:.3px;flex-wrap:wrap}
-        .grow .mono{color:#4E4A44}
-        .sep{color:#3A3833}
-        .more{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px;color:var(--dim2);
-          margin-top:16px;letter-spacing:.5px;cursor:pointer}
-        .more svg{stroke:var(--dim2)}
-      `}</style>
-
-      <div className="frame">
-        <div className="grain" />
-
-        <div className="top fade f1">
-          <span className="clock mono">09:41</span>
-          <span className="queue">3 guardados <span className="qdot" /></span>
-        </div>
-
-        <div className="stage">
-          <div className="kicker fade f2"><span className="live" /> AGORA</div>
-          <div className="glyph rise"><Icon n={agora.icon} s={28} /></div>
-          <div className="title rise">{agora.titulo}</div>
-          <div className="when rise mono">{agora.horario} · começa em <b>{agora.faltam}</b></div>
-          <div className="ctx rise">{agora.contexto} <b>O resto do dia fica guardado</b> até a sua hora.</div>
-          <button className="cta rise"><Icon n="play" s={16} /> Iniciar</button>
-          <button className="defer rise">agora não</button>
-        </div>
-
-        <div className="ghost fade f3">
-          <div className="glbl">DEPOIS</div>
-          <div className="grow">
-            <span className="mono">11:45</span> Farmácia <span className="sep">·</span> <span className="mono">14:00</span> Turno WEG
+      {prox ? (
+        <div style={{ flex:1, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', textAlign:'center', padding:'12px 6px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:10, letterSpacing:2.4, color:'var(--dim)', marginBottom:26 }}>
+            <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--red)' }}/> AGORA
           </div>
-          <div className="more fade f4">ver o dia inteiro <Icon n="chevron" s={13} /></div>
+          <div style={{ width:58, height:58, border:'1px solid var(--line)', borderRadius:15, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:24 }}>
+            <Icon n={prox.icone} s={26}/>
+          </div>
+          <div style={{ fontSize:38, fontWeight:600, letterSpacing:-1.2, lineHeight:1 }}>{prox.titulo}</div>
+          <div className="mono" style={{ fontSize:14, color:'var(--dim)', marginTop:16 }}>
+            {prox.hora} · {quando}
+          </div>
+          {prox.duracaoMin > 0 && (
+            <div style={{ fontSize:14, color:'var(--dim)', marginTop:20, maxWidth:250, lineHeight:1.6 }}>
+              Alvo de {fmtDur(prox.duracaoMin)}. <b style={{ color:'var(--bone)', fontWeight:500 }}>O resto fica guardado</b> até a sua hora.
+            </div>
+          )}
+          <button className="btn btn-bone" style={{ marginTop:36, width:'100%', maxWidth:290, height:56 }} onClick={iniciar}>
+            <Icon n="play" s={16}/> Iniciar
+          </button>
+          <button className="btn-ghost" style={{ marginTop:14 }} onClick={adiar}>agora não</button>
+        </div>
+      ) : (
+        <div style={{ flex:1, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', textAlign:'center' }}>
+          <div style={{ fontSize:26, fontWeight:600, letterSpacing:-.5 }}>Tudo feito por hoje.</div>
+          <div style={{ fontSize:14, color:'var(--dim)', marginTop:12 }}>Respira. Você cumpriu o dia.</div>
+        </div>
+      )}
+
+      {abertos.length > 0 && (
+        <div style={{ paddingTop:20, borderTop:'1px solid var(--line-soft)' }}>
+          <div style={{ fontSize:9, letterSpacing:2, color:'var(--dim2)', textAlign:'center', marginBottom:12 }}>DEPOIS</div>
+          <div style={{ display:'flex', justifyContent:'center', gap:8, fontSize:12, color:'var(--dim2)', flexWrap:'wrap' }}>
+            {abertos.slice(0,3).map(i => (
+              <span key={i.id}><span className="mono" style={{ color:'#4E4A44' }}>{i.hora}</span> {i.titulo}</span>
+            ))}
+          </div>
+          <div onClick={()=>nav('/extrato')} style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, fontSize:11, color:'var(--dim2)', marginTop:16, cursor:'pointer' }}>
+            ver o dia inteiro <Icon n="chevron" s={13}/>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ---------------- ALOCAR ---------------- */
+function Alocar({ dados, setDados }){
+  const vazio = { titulo:'', hora:'08:00', duracaoMin:60, custo:'', icone:'dumbbell' }
+  const [f, setF] = useState(vazio)
+  const set = (k,v) => setF(s => ({ ...s, [k]:v }))
+  const add = () => {
+    if (!f.titulo.trim()) return
+    const novo = { ...f, id: Date.now(), custo: f.custo === '' ? 0 : Number(f.custo),
+      duracaoMin: Number(f.duracaoMin) || 0, feito:false }
+    setDados(d => ({ ...d, itens: [...d.itens, novo] }))
+    setF(vazio)
+  }
+  const del = (id) => setDados(d => ({ ...d, itens: d.itens.filter(i => i.id !== id) }))
+  const itens = [...dados.itens].sort((a,b)=>horaMin(a.hora)-horaMin(b.hora))
+
+  return (
+    <div>
+      <div className="hdr"><div><h1>Alocar</h1><div className="sub">distribua tempo e dinheiro antes</div></div></div>
+
+      <div className="canal"><span className="code mono">+</span> NOVO BLOCO <span className="ln"/></div>
+      <div className="field"><label>Título</label>
+        <input value={f.titulo} onChange={e=>set('titulo', e.target.value)} placeholder="Ex: Academia"/></div>
+      <div className="grid2">
+        <div className="field"><label>Hora</label>
+          <input type="time" value={f.hora} onChange={e=>set('hora', e.target.value)}/></div>
+        <div className="field"><label>Duração (min)</label>
+          <input type="number" value={f.duracaoMin} onChange={e=>set('duracaoMin', e.target.value)}/></div>
+      </div>
+      <div className="grid2">
+        <div className="field"><label>Custo R$ (opcional)</label>
+          <input type="number" value={f.custo} onChange={e=>set('custo', e.target.value)} placeholder="0"/></div>
+        <div className="field"><label>Ícone</label>
+          <select value={f.icone} onChange={e=>set('icone', e.target.value)}>
+            <option value="dumbbell">Treino</option>
+            <option value="pill">Saúde</option>
+            <option value="wrench">Trabalho</option>
+            <option value="bolt">Conta</option>
+            <option value="clock">Geral</option>
+          </select></div>
+      </div>
+      <button className="btn btn-bone" style={{ width:'100%', marginTop:6 }} onClick={add}>
+        <Icon n="plus" s={16}/> Adicionar
+      </button>
+
+      <div className="canal mt"><span className="code mono">=</span> SEUS BLOCOS <span className="ln"/></div>
+      {itens.map(i => (
+        <div className="item" key={i.id}>
+          <div className={`ico ${i.conta ? 'red':''}`}><Icon n={i.icone} s={17}/></div>
+          <div className="nm">
+            <div className="t">{i.titulo}</div>
+            <div className="s"><span className="mono">{i.hora}</span> · {fmtDur(i.duracaoMin)} · {fmtR(i.custo)}</div>
+          </div>
+          <button className="btn-ghost" onClick={()=>del(i.id)} title="apagar" style={{ color:'var(--dim2)' }}>
+            <Icon n="trash" s={17}/>
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* ---------------- EXTRATO (duplo preço) ---------------- */
+function Extrato({ dados }){
+  const itens = [...dados.itens].sort((a,b)=>horaMin(a.hora)-horaMin(b.hora))
+  const tempoTotal = itens.reduce((s,i)=>s + (i.duracaoMin||0), 0)
+  const dinheiro = itens.reduce((s,i)=>s + (Number(i.custo)||0), 0)
+
+  return (
+    <div>
+      <div className="hdr"><div><h1>Extrato</h1><div className="sub">uma escolha, dois preços</div></div></div>
+
+      <div style={{ display:'flex', justifyContent:'flex-end', gap:0, padding:'0 2px 8px', borderBottom:'1px solid var(--line)' }}>
+        <div className="mono" style={{ width:70, textAlign:'right', fontSize:9, letterSpacing:1.2, color:'var(--dim2)' }}>TEMPO</div>
+        <div className="mono" style={{ width:78, textAlign:'right', fontSize:9, letterSpacing:1.2, color:'var(--dim2)' }}>R$</div>
+      </div>
+      {itens.map(i => (
+        <div className="item" key={i.id}>
+          <div className={`ico ${i.conta ? 'red':''}`}><Icon n={i.icone} s={17}/></div>
+          <div className="nm"><div className="t">{i.titulo}</div>
+            <div className="s"><span className="mono">{i.hora}</span></div></div>
+          <div className="mono" style={{ width:70, textAlign:'right', fontSize:14, color:'#B8B2A6' }}>{fmtDur(i.duracaoMin)}</div>
+          <div className="mono" style={{ width:78, textAlign:'right', fontSize:14, color: Number(i.custo)>0 ? 'var(--red)':'var(--dim2)' }}>{fmtR(i.custo)}</div>
+        </div>
+      ))}
+
+      <div style={{ display:'flex', justifyContent:'space-between', marginTop:18, paddingTop:15, borderTop:'1px solid var(--line)' }}>
+        <div><div style={{ fontSize:11, color:'var(--dim)' }}>Tempo alocado</div>
+          <div className="mono" style={{ fontSize:20, fontWeight:600, marginTop:4 }}>{fmtDur(tempoTotal)}</div></div>
+        <div style={{ textAlign:'right' }}><div style={{ fontSize:11, color:'var(--dim)' }}>Comprometido</div>
+          <div className="mono" style={{ fontSize:20, fontWeight:600, marginTop:4, color:'var(--red)' }}>{fmtR(dinheiro)}</div></div>
+      </div>
+    </div>
+  )
+}
+
+/* ---------------- COPILOTO ---------------- */
+function Copiloto({ dados }){
+  const prox = proximo(dados.itens)
+  const feitos = dados.itens.filter(i=>i.feito).length
+  const total = dados.itens.filter(i=>!i.conta).length
+  const dinheiro = dados.itens.reduce((s,i)=>s+(Number(i.custo)||0),0)
+
+  return (
+    <div>
+      <div className="hdr"><div><h1>Copiloto</h1><div className="sub">o que importa agora</div></div></div>
+
+      <div style={{ padding:'18px 0', borderBottom:'1px solid var(--line)' }}>
+        <div style={{ fontSize:11, letterSpacing:1, color:'var(--dim)', marginBottom:8 }}>SEU PRÓXIMO MOVIMENTO</div>
+        {prox ? (
+          <div style={{ fontSize:24, fontWeight:600, letterSpacing:-.5 }}>
+            {prox.titulo} <span className="mono" style={{ fontSize:15, color:'var(--red)' }}>{prox.hora}</span>
+          </div>
+        ) : <div style={{ fontSize:20, color:'var(--dim)' }}>Nada pendente. Dia limpo.</div>}
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginTop:16 }}>
+        <div style={{ padding:16, border:'1px solid var(--line)', borderRadius:12 }}>
+          <div style={{ fontSize:11, color:'var(--dim)' }}>Concluídos hoje</div>
+          <div className="mono" style={{ fontSize:26, fontWeight:600, marginTop:6 }}>{feitos}/{total}</div>
+        </div>
+        <div style={{ padding:16, border:'1px solid var(--line)', borderRadius:12 }}>
+          <div style={{ fontSize:11, color:'var(--dim)' }}>Comprometido</div>
+          <div className="mono" style={{ fontSize:26, fontWeight:600, marginTop:6, color:'var(--red)' }}>{fmtR(dinheiro)}</div>
         </div>
       </div>
     </div>
-  );
+  )
+}
+
+/* ---------------- PERFIL ---------------- */
+function Perfil({ dados, setDados }){
+  const reset = () => {
+    if (window.confirm('Apagar todos os dados e voltar ao exemplo inicial?')) {
+      const novo = resetar(); setDados(novo)
+    }
+  }
+  return (
+    <div>
+      <div className="hdr"><div><h1>Perfil</h1><div className="sub">ajustes</div></div></div>
+      <div className="field"><label>Seu nome</label>
+        <input value={dados.perfil.nome}
+          onChange={e=>setDados(d=>({ ...d, perfil:{ ...d.perfil, nome:e.target.value } }))}/></div>
+
+      <div className="canal mt"><span className="code mono">!</span> DADOS <span className="ln"/></div>
+      <button className="btn btn-red" style={{ width:'100%' }} onClick={reset}>Resetar para o exemplo</button>
+      <div style={{ fontSize:11, color:'var(--dim2)', marginTop:20, textAlign:'center' }} className="mono">FOCO · v1.0</div>
+    </div>
+  )
+}
+
+/* ---------------- NAV ---------------- */
+function BottomNav(){
+  const itens = [
+    ['/', 'home', 'Hoje'],
+    ['/alocar', 'list', 'Alocar'],
+    ['/extrato', 'coin', 'Extrato'],
+    ['/copiloto', 'spark', 'Copiloto'],
+    ['/perfil', 'user', 'Perfil'],
+  ]
+  return (
+    <nav className="nav">
+      {itens.map(([to, ico, label]) => (
+        <NavLink key={to} to={to} end={to === '/'}
+          className={({isActive}) => 'navitem' + (isActive ? ' on' : '')}>
+          <Icon n={ico} s={21}/> {label}
+        </NavLink>
+      ))}
+    </nav>
+  )
+}
+
+/* ---------------- APP ---------------- */
+export default function App(){
+  const [dados, setDados] = useDados()
+  return (
+    <HashRouter>
+      <div className="shell">
+        <div className="content">
+          <Routes>
+            <Route path="/" element={<Hoje dados={dados} setDados={setDados} />} />
+            <Route path="/alocar" element={<Alocar dados={dados} setDados={setDados} />} />
+            <Route path="/extrato" element={<Extrato dados={dados} />} />
+            <Route path="/copiloto" element={<Copiloto dados={dados} />} />
+            <Route path="/perfil" element={<Perfil dados={dados} setDados={setDados} />} />
+          </Routes>
+        </div>
+        <BottomNav />
+      </div>
+    </HashRouter>
+  )
 }
