@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { HashRouter, Routes, Route, NavLink } from 'react-router-dom'
-import { useDados, resetar, fmtDur, fmtR, proximo, horaMin, agoraMin, statusConta, resumo, eventosOrdenados } from './data.js'
+import { useDados, resetar, salvar, fmtDur, fmtR, proximo, horaMin, agoraMin, statusConta, resumo, eventosOrdenados } from './data.js'
 
 function Icon({ n, s=18 }){
   const p={ width:s, height:s, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:1.5, strokeLinecap:'round', strokeLinejoin:'round' }
@@ -8,7 +8,6 @@ function Icon({ n, s=18 }){
     dumbbell:<path d="M6.5 6.5v11M17.5 6.5v11M4 9.5v5M20 9.5v5M6.5 12h11"/>,
     book:<><path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M5 16h13"/></>,
     meal:<><path d="M7 3v7a2 2 0 0 0 2 2 2 2 0 0 0 2-2V3M9 12v9M17 3c-1.5 1-2.5 3-2.5 6s1 4 2.5 4v8"/></>,
-    coffee:<><path d="M4 8h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 9h2a2 2 0 0 1 0 4h-2"/></>,
     wrench:<path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.3L4 15.7 6.3 18l5.9-5.9a3.5 3.5 0 0 0 4.3-4.6l-2.1 2.1-1.9-.5-.5-1.9z"/>,
     pill:<><rect x="3" y="8" width="18" height="8" rx="4"/><path d="M12 8v8"/></>,
     moon:<path d="M20 14a8 8 0 1 1-9-10 6 6 0 0 0 9 10z"/>,
@@ -26,7 +25,8 @@ function Icon({ n, s=18 }){
     user:<><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.4-3.5 4.6-4.5 7-4.5s5.6 1 7 4.5"/></>,
     check:<path d="M5 12.5 10 17l9-10"/>, plus:<path d="M12 5v14M5 12h14"/>,
     trash:<><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></>,
-    down:<path d="M12 5v14M6 13l6 6 6-6"/>, up:<path d="M12 19V5M6 11l6-6 6 6"/>, star:<path d="M12 3l2.5 6H21l-5 4 2 7-6-4-6 4 2-7-5-4h6.5z"/>,
+    up:<path d="M12 19V5M6 11l6-6 6 6"/>, down:<path d="M12 5v14M6 13l6 6 6-6"/>, star:<path d="M12 3l2.5 6H21l-5 4 2 7-6-4-6 4 2-7-5-4h6.5z"/>,
+    send:<path d="M4 12l16-8-6 16-3-7-7-1z"/>,
   }
   return <svg {...p}>{d[n]||null}</svg>
 }
@@ -37,11 +37,14 @@ function useCountUp(target, dur, start){
   return v
 }
 
+/* trajetória com inércia (deslize suave) */
 function Trajetoria({ rotina, toggle }){
-  const ref=useRef(null); const drag=useRef({down:false,x:0,sc:0})
-  const onDown=e=>{ drag.current={down:true,x:(e.pageX??e.touches[0].pageX),sc:ref.current.scrollLeft} }
-  const onMove=e=>{ if(!drag.current.down) return; const x=(e.pageX??e.touches[0].pageX); ref.current.scrollLeft=drag.current.sc-(x-drag.current.x) }
-  const onUp=()=>{ drag.current.down=false }
+  const ref=useRef(null)
+  const s=useRef({down:false,startX:0,startScroll:0,lastX:0,lastT:0,vel:0,raf:0,moved:false})
+  const stop=()=>{ if(s.current.raf){ cancelAnimationFrame(s.current.raf); s.current.raf=0 } }
+  const onDown=e=>{ stop(); const x=e.pageX??e.touches[0].pageX; s.current={...s.current,down:true,startX:x,startScroll:ref.current.scrollLeft,lastX:x,lastT:performance.now(),vel:0,moved:false}; ref.current.classList.add('drag') }
+  const onMove=e=>{ const c=s.current; if(!c.down) return; const x=e.pageX??e.touches[0].pageX; if(Math.abs(x-c.startX)>3) c.moved=true; ref.current.scrollLeft=c.startScroll-(x-c.startX); const now=performance.now(); const dt=(now-c.lastT)||16; c.vel=(x-c.lastX)/dt; c.lastX=x; c.lastT=now }
+  const onUp=()=>{ const c=s.current; if(!c.down) return; c.down=false; ref.current.classList.remove('drag'); let v=c.vel*16; const step=()=>{ if(Math.abs(v)<0.4){ s.current.raf=0; return } ref.current.scrollLeft-=v; v*=0.94; s.current.raf=requestAnimationFrame(step) }; s.current.raf=requestAnimationFrame(step) }
   const itens=[...rotina].sort((a,b)=>horaMin(a.hora)-horaMin(b.hora))
   return (
     <div ref={ref} className="track" onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp} onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}>
@@ -52,7 +55,7 @@ function Trajetoria({ rotina, toggle }){
             <div className="thead"><div className="tic"><Icon n={b.icone} s={19}/></div><div className="thora mono">{b.hora}</div></div>
             <div className="ttit" style={ b.feito?{color:'var(--dim2)',textDecoration:'line-through'}:{} }>{b.titulo}</div>
             <div className="tdur">{fmtDur(b.duracaoMin)}</div>
-            <div className="tdone" onClick={(e)=>{e.stopPropagation(); toggle(b.id)}}>
+            <div className="tdone" onClick={(e)=>{ e.stopPropagation(); if(!s.current.moved) toggle(b.id) }}>
               <span className={`tcheck ${b.feito?'on':''}`}>{b.feito && <Icon n="check" s={11}/>}</span>{b.feito?'feito':'marcar feito'}
             </div>
           </div>
@@ -150,7 +153,6 @@ function Financas({ dados, setDados }){
           <button className="btn-ghost" style={{width:'100%',marginTop:10}} onClick={()=>setNova(false)}>cancelar</button>
         </div>
       ):(<button className="btn btn-line" style={{width:'100%',marginTop:14}} onClick={()=>setNova(true)}><Icon n="plus" s={16}/> Nova conta</button>)}
-
       <div className="sect">RESERVAS DO MÊS <span className="ln"/></div>
       <div style={{fontSize:11,color:'var(--dim2)',marginBottom:8}}>metas · total {fmtR(r.reservasTotal)}</div>
       {dados.reservas.map(rv=>(
@@ -160,16 +162,15 @@ function Financas({ dados, setDados }){
           <div className="mono" style={{fontSize:15,fontWeight:600,color:'var(--gold)'}}>{fmtR(rv.meta)}</div>
         </div>
       ))}
-
       <div className="sect">CALENDÁRIO DO ANO <span className="ln"/></div>
       {evs.map(e=>(
         <div className="item" key={e.id}>
           <div className="ico" style={{color:corEv(e.tipo)}}><Icon n={icoEv(e.tipo)} s={17}/></div>
-          <div className="nm">
-            <div className="t">{e.nome}</div>
-            <div className="s mono">{e.dt ? e.dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}) : '—'}</div>
+          <div className="nm"><div className="t">{e.nome}</div><div className="s mono">{e.dt?e.dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}):'—'}</div></div>
+          <div style={{textAlign:'right'}}>
+            {e.valor?<div className="mono" style={{fontSize:14,fontWeight:600,color:corEv(e.tipo)}}>{fmtR(e.valor)}</div>:null}
+            <div className="mono" style={{fontSize:11,color:'var(--dim2)',marginTop:2}}>{e.dias===0?'hoje':`faltam ${e.dias}d`}</div>
           </div>
-          <div className="mono" style={{fontSize:13,fontWeight:600,color:'var(--dim)'}}>{e.dias===0?'hoje':`faltam ${e.dias}d`}</div>
         </div>
       ))}
     </div>
@@ -214,46 +215,69 @@ function Agenda({ dados, setDados }){
   )
 }
 
-function Copiloto({ dados }){
-  const prox=proximo(dados.rotina); const r=resumo(dados)
-  const feitos=dados.rotina.filter(i=>i.feito).length, total=dados.rotina.length
-  const ev=eventosOrdenados(dados)[0]
+/* Copiloto — chat por comandos (offline) */
+function Copiloto({ dados, setDados }){
+  const [msgs,setMsgs]=useState([{from:'bot',text:'Fala comigo. Ex: "quanto posso gastar", "próxima conta", "próximo", "resumo", "paguei energia", "fiz academia".'}])
+  const [txt,setTxt]=useState('')
+  const endRef=useRef(null)
+  useEffect(()=>{ endRef.current && endRef.current.scrollIntoView({behavior:'smooth'}) },[msgs])
+
+  const responder=(qRaw)=>{
+    const q=qRaw.toLowerCase().trim(); const r=resumo(dados)
+    const mPag=q.match(/pag(?:uei|ar|o)\s+(.+)/)
+    if(mPag){ const alvo=mPag[1].trim(); const c=dados.contas.find(x=>x.nome.toLowerCase().includes(alvo)); if(c){ setDados(d=>({...d,contas:d.contas.map(x=>x.id===c.id?{...x,pago:true}:x)})); return `Marquei ${c.nome} como paga.` } return `Não achei a conta "${alvo}".` }
+    const mFez=q.match(/(?:fiz|feito|terminei|conclu[ií])\s+(.+)/)
+    if(mFez){ const alvo=mFez[1].trim(); const it=dados.rotina.find(x=>x.titulo.toLowerCase().includes(alvo)); if(it){ setDados(d=>({...d,rotina:d.rotina.map(x=>x.id===it.id?{...x,feito:true}:x)})); return `Feito: ${it.titulo}.` } return `Não achei "${alvo}" na agenda.` }
+    if(/posso gastar|quanto.*(livre|gastar)|^livre/.test(q)) return `Livre pra gastar: ${fmtR(Math.max(0,r.livre))} — de ${fmtR(r.renda)}, ${r.comprometidoPct}% comprometido.`
+    if(/pr[oó]xima conta|conta.*(vence|vencer|pr[oó]xima)/.test(q)) return r.proxima?`Próxima conta: ${r.proxima.nome}, dia ${r.proxima.dia}, ${fmtR(r.proxima.valor)}.`:`Nenhuma conta com vencimento definido.`
+    if(/pr[oó]ximo|agora|movimento/.test(q)){ const p=proximo(dados.rotina); return p?`Agora: ${p.titulo} às ${p.hora}.`:`Nada pendente na agenda.` }
+    if(/falta.*pagar|quanto.*falta/.test(q)) return `Falta pagar este mês: ${fmtR(r.falta)}.`
+    if(/resumo|situa[cç]/.test(q)) return `Custo de vida ${fmtR(r.custoVida)} · pago ${fmtR(r.pago)} · falta ${fmtR(r.falta)} · livre ${fmtR(Math.max(0,r.livre))}.`
+    return `Ainda não entendo isso. Tento: "quanto posso gastar" · "próxima conta" · "próximo" · "resumo" · "paguei <conta>" · "fiz <tarefa>".`
+  }
+  const enviar=()=>{ const q=txt.trim(); if(!q) return; const resp=responder(q); setMsgs(m=>[...m,{from:'user',text:q},{from:'bot',text:resp}]); setTxt('') }
+
   return (
-    <div>
-      <div className="hdr"><div><h1>Copiloto</h1><div className="sub">agora</div></div></div>
-      <div style={{padding:'18px 0',borderBottom:'1px solid var(--goldline)'}}>
-        <div style={{fontSize:11,letterSpacing:1,color:'var(--golddim)',marginBottom:8}}>PRÓXIMO MOVIMENTO</div>
-        {prox?<div style={{fontSize:24,fontWeight:600,letterSpacing:-.5}}>{prox.titulo} <span className="mono" style={{fontSize:15,color:'var(--gold)'}}>{prox.hora}</span></div>:<div style={{fontSize:18,color:'var(--dim)'}}>Nada pendente</div>}
+    <div style={{display:'flex',flexDirection:'column',minHeight:'78vh'}}>
+      <div className="hdr"><div><h1>Copiloto</h1><div className="sub">fale comigo</div></div></div>
+      <div className="chat" style={{flex:1}}>
+        {msgs.map((m,i)=>(<div key={i} className={`msg ${m.from}`}>{m.text}</div>))}
+        <div ref={endRef}/>
       </div>
-      <div style={{padding:'18px 0',borderBottom:'1px solid var(--goldline)'}}>
-        <div style={{fontSize:11,letterSpacing:1,color:'var(--golddim)',marginBottom:8}}>PRÓXIMA CONTA</div>
-        {r.proxima?<div style={{fontSize:24,fontWeight:600,letterSpacing:-.5}}>{r.proxima.nome} <span className="mono" style={{fontSize:15,color:'var(--gold)'}}>dia {r.proxima.dia}</span> <span className="mono" style={{fontSize:15,color:'var(--dim)'}}>{fmtR(r.proxima.valor)}</span></div>:<div style={{fontSize:16,color:'var(--dim)'}}>Sem vencimentos</div>}
-      </div>
-      {ev && (
-        <div style={{padding:'18px 0',borderBottom:'1px solid var(--goldline)'}}>
-          <div style={{fontSize:11,letterSpacing:1,color:'var(--golddim)',marginBottom:8}}>PRÓXIMO NO ANO</div>
-          <div style={{fontSize:22,fontWeight:600,letterSpacing:-.5}}>{ev.nome} <span className="mono" style={{fontSize:14,color:'var(--dim)'}}>faltam {ev.dias}d</span></div>
-        </div>
-      )}
-      <div className="glance">
-        <div className="card gc"><div className="gcl">Rotina</div><div className="gcv mono">{feitos}/{total}</div></div>
-        <div className="card gc"><div className="gcl">Livre</div><div className="gcv gold mono">{fmtR(Math.max(0,r.livre))}</div></div>
-        <div className="card gc"><div className="gcl">Falta</div><div className="gcv red mono">{fmtR(r.falta)}</div></div>
+      <div className="chatbar">
+        <input value={txt} onChange={e=>setTxt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')enviar()}} placeholder="escreva um comando..."/>
+        <button onClick={enviar}><Icon n="send" s={18}/></button>
       </div>
     </div>
   )
 }
 
 function Perfil({ dados, setDados }){
+  const r=resumo(dados)
+  const fileRef=useRef(null)
   const reset=()=>{ if(window.confirm('Apagar tudo e voltar ao inicial?')) setDados(resetar()) }
+  const exportar=()=>{ const blob=new Blob([JSON.stringify(dados,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='foco-backup.json'; a.click(); URL.revokeObjectURL(url) }
+  const importar=(e)=>{ const file=e.target.files&&e.target.files[0]; if(!file)return; const rd=new FileReader(); rd.onload=()=>{ try{ const d=JSON.parse(rd.result); if(d&&d.contas&&d.rotina){ setDados(d) } else alert('Arquivo não parece um backup do Foco.') }catch(x){ alert('Arquivo inválido.') } }; rd.readAsText(file); e.target.value='' }
   return (
     <div>
       <div className="hdr"><div><h1>Perfil</h1><div className="sub">ajustes</div></div></div>
       <div className="field"><label>Nome</label><input value={dados.perfil.nome} onChange={e=>setDados(d=>({...d,perfil:{...d.perfil,nome:e.target.value}}))}/></div>
       <div className="field"><label>Renda do mês (R$)</label><input type="number" value={dados.perfil.renda} onChange={e=>setDados(d=>({...d,perfil:{...d.perfil,renda:Number(e.target.value)||0}}))}/></div>
+
+      <div className="sect">RESUMO <span className="ln"/></div>
+      <div className="prow"><span className="k">Custo de vida</span><span className="v mono">{fmtR(r.custoVida)}</span></div>
+      <div className="prow"><span className="k">Livre pra gastar</span><span className="v mono" style={{color:'var(--gold)'}}>{fmtR(Math.max(0,r.livre))}</span></div>
+      <div className="prow"><span className="k">Comprometido</span><span className="v mono">{r.comprometidoPct}%</span></div>
+      <div className="prow"><span className="k">Próximo reajuste WEG</span><span className="v mono">Nov/2026 · +5%</span></div>
+
+      <div className="sect">BACKUP <span className="ln"/></div>
+      <button className="btn btn-line" style={{width:'100%'}} onClick={exportar}>Exportar dados (JSON)</button>
+      <button className="btn btn-line" style={{width:'100%',marginTop:10}} onClick={()=>fileRef.current&&fileRef.current.click()}>Importar dados</button>
+      <input ref={fileRef} type="file" accept="application/json" style={{display:'none'}} onChange={importar}/>
+
       <div className="sect">DADOS <span className="ln"/></div>
       <button className="btn btn-red" style={{width:'100%'}} onClick={reset}>Resetar dados</button>
-      <div className="mono" style={{fontSize:11,color:'var(--dim2)',marginTop:20,textAlign:'center'}}>FOCO · v2.1</div>
+      <div className="mono" style={{fontSize:11,color:'var(--dim2)',marginTop:20,textAlign:'center'}}>FOCO · v2.2</div>
     </div>
   )
 }
@@ -273,7 +297,7 @@ export default function App(){
             <Route path="/" element={<Inicio dados={dados} setDados={setDados}/>}/>
             <Route path="/financas" element={<Financas dados={dados} setDados={setDados}/>}/>
             <Route path="/agenda" element={<Agenda dados={dados} setDados={setDados}/>}/>
-            <Route path="/copiloto" element={<Copiloto dados={dados}/>}/>
+            <Route path="/copiloto" element={<Copiloto dados={dados} setDados={setDados}/>}/>
             <Route path="/perfil" element={<Perfil dados={dados} setDados={setDados}/>}/>
           </Routes>
         </div>
