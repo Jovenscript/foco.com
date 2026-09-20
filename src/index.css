@@ -33,9 +33,10 @@ body{background:var(--bg);color:var(--bone);font-family:'Sora',system-ui,sans-se
 .bar{margin-top:18px;height:8px;border-radius:6px;background:rgba(255,255,255,0.05);position:relative;overflow:hidden}
 .barf{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:linear-gradient(90deg,var(--golddim),var(--gold));transition:width 1.4s cubic-bezier(.2,.7,.2,1)}
 .ticks{display:flex;justify-content:space-between;margin-top:7px;font-size:9px;color:var(--dim2)}
-.track{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;cursor:grab;user-select:none;scroll-snap-type:x mandatory;scrollbar-width:none}
+.track{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;cursor:grab;user-select:none;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .track::-webkit-scrollbar{display:none}
-.tblock{min-width:196px;max-width:196px;scroll-snap-align:start;background:linear-gradient(160deg,var(--panel-a),var(--panel-b));border:1px solid var(--goldline);border-radius:18px;padding:15px;box-shadow:inset 0 1px 0 rgba(246,230,176,0.06)}
+.track.drag{cursor:grabbing}
+.tblock{min-width:196px;max-width:196px;scroll-snap-align:center;background:linear-gradient(160deg,var(--panel-a),var(--panel-b));border:1px solid var(--goldline);border-radius:18px;padding:15px;box-shadow:inset 0 1px 0 rgba(246,230,176,0.06)}
 .tgold{border-color:rgba(232,197,119,0.55);box-shadow:0 0 24px -6px rgba(232,197,119,0.3), inset 0 1px 0 rgba(246,230,176,0.14)}
 .thead{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .tic{width:38px;height:38px;border-radius:11px;border:1px solid var(--goldline);display:flex;align-items:center;justify-content:center;color:var(--gold)}
@@ -75,6 +76,17 @@ body{background:var(--bg);color:var(--bone);font-family:'Sora',system-ui,sans-se
 .btn-line{background:transparent;border:1px solid var(--goldline);color:var(--gold)}
 .btn-red{background:transparent;border:1px solid rgba(224,134,95,0.5);color:var(--red)}
 .btn-ghost{background:none;border:none;color:var(--dim2);font-size:13px;cursor:pointer;font-family:'Sora'}
+.prow{display:flex;justify-content:space-between;align-items:center;padding:14px 2px;border-bottom:1px solid var(--goldline)}
+.prow .k{font-size:13px;color:var(--dim)}
+.prow .v{font-size:14px;font-weight:600}
+.chat{display:flex;flex-direction:column;gap:10px;margin:4px 0 14px}
+.msg{max-width:84%;padding:11px 14px;border-radius:14px;font-size:14px;line-height:1.45}
+.msg.bot{align-self:flex-start;background:linear-gradient(160deg,var(--panel-a),var(--panel-b));border:1px solid var(--goldline);border-bottom-left-radius:4px}
+.msg.user{align-self:flex-end;background:var(--gold);color:#0A0A0C;border-bottom-right-radius:4px;font-weight:500}
+.chatbar{display:flex;gap:8px;position:sticky;bottom:0;padding-top:6px;background:#0A0A0C}
+.chatbar input{flex:1;background:#151318;border:1px solid var(--goldline);border-radius:12px;padding:12px 14px;color:var(--bone);font-family:'Sora';font-size:15px;outline:none}
+.chatbar button{width:50px;border-radius:12px;background:var(--gold);border:none;color:#0A0A0C;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.chatbar button svg{stroke:#0A0A0C}
 .nav{position:sticky;bottom:0;display:flex;justify-content:space-around;padding:12px 8px calc(env(safe-area-inset-bottom) + 14px);background:#0A0A0C;border-top:1px solid rgba(232,197,119,0.14)}
 .navitem{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:9px;letter-spacing:.5px;color:var(--dim2);text-decoration:none;position:relative;padding-top:6px}
 .navitem svg{color:var(--dim2)}
